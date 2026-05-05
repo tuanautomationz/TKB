@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TKB Data Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root {
+  --blue: #185FA5; --blue-light: #E6F1FB; --blue-mid: #B5D4F4;
+  --green: #0F6E56; --green-light: #E1F5EE;
+  --red: #A32D2D; --red-light: #FCEBEB;
+  --amber: #BA7517; --amber-light: #FAEEDA;
+  --gray-50: #F7F7F5; --gray-100: #EBEBEA; --gray-300: #C8C7C4;
+  --gray-500: #888780; --gray-800: #2C2C2A;
+  --text: #1a1a18; --text-muted: #888780;
+  --border: #E0DFDc; --radius: 8px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); font-size: 13px; color: var(--text); background: #F4F3F0; min-height: 100vh; }
+
+/* Layout */
+.app { display: flex; height: 100vh; }
+.sidebar { width: 220px; background: #1a1a18; display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar-logo { padding: 20px 16px 12px; border-bottom: 1px solid #2e2e2c; }
+.sidebar-logo h1 { font-size: 14px; font-weight: 600; color: #fff; letter-spacing: .02em; }
+.sidebar-logo p { font-size: 11px; color: #888; margin-top: 2px; }
+.sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 16px; cursor: pointer; color: #aaa; font-size: 12.5px; transition: all .15s; border-left: 2px solid transparent; }
+.nav-item:hover { color: #fff; background: rgba(255,255,255,.04); }
+.nav-item.active { color: #fff; background: rgba(255,255,255,.07); border-left-color: var(--blue); }
+.nav-icon { font-size: 14px; width: 18px; text-align: center; }
+.nav-badge { margin-left: auto; background: rgba(255,255,255,.1); color: #aaa; font-size: 10px; padding: 1px 6px; border-radius: 10px; }
+.sidebar-actions { padding: 12px; border-top: 1px solid #2e2e2c; display: flex; flex-direction: column; gap: 6px; }
+
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar { background: #fff; border-bottom: 1px solid var(--border); padding: 0 24px; height: 52px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.topbar-title { font-weight: 600; font-size: 14px; }
+.topbar-sub { font-size: 12px; color: var(--text-muted); }
+.spacer { flex: 1; }
+.content { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+/* Cards */
+.card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; }
+.card-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.card-title { font-weight: 600; font-size: 13px; }
+.card-desc { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
+.card-body { padding: 16px; }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th { background: var(--gray-50); padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; border: 1px solid var(--border); white-space: nowrap; }
+td { border: 1px solid var(--border); padding: 0; height: 34px; }
+tr:nth-child(even) td { background: #FAFAF9; }
+.cell { display: flex; align-items: center; padding: 0 8px; height: 100%; }
+.cell input, .cell select { width: 100%; border: none; outline: none; background: transparent; font-size: 12.5px; font-family: var(--font); color: var(--text); padding: 0; height: 100%; }
+.cell input:focus, td:focus-within { outline: 2px solid var(--blue); outline-offset: -1px; z-index: 1; position: relative; }
+.cell select { cursor: pointer; }
+.del-btn { background: none; border: none; cursor: pointer; color: var(--gray-300); font-size: 14px; padding: 4px 8px; display: flex; align-items: center; }
+.del-btn:hover { color: var(--red); }
+.add-row { display: flex; align-items: center; gap: 6px; padding: 8px 12px; color: var(--blue); font-size: 12px; cursor: pointer; border-top: 1px solid var(--border); background: #FAFAF9; border-radius: 0 0 6px 6px; }
+.add-row:hover { background: var(--blue-light); }
+
+/* Tags/badges */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+.badge-blue { background: var(--blue-light); color: var(--blue); }
+.badge-green { background: var(--green-light); color: var(--green); }
+.badge-amber { background: var(--amber-light); color: var(--amber); }
+.badge-red { background: var(--red-light); color: var(--red); }
+
+/* Buttons */
+.btn { padding: 7px 14px; border-radius: 6px; font-size: 12.5px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: #fff; color: var(--text); font-family: var(--font); transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: var(--gray-50); }
+.btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-primary:hover { background: #1052a0; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 11.5px; }
+.btn-sidebar { width: 100%; padding: 9px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 500; cursor: pointer; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #ccc; font-family: var(--font); display: flex; align-items: center; gap: 7px; }
+.btn-sidebar:hover { background: rgba(255,255,255,.1); color: #fff; }
+.btn-generate { background: var(--blue); color: #fff; border-color: rgba(255,255,255,.1); }
+.btn-generate:hover { background: #1052a0; color: #fff; }
+.btn-generate:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Output panel */
+.output-panel { background: #1a1a18; border-radius: var(--radius); padding: 16px; }
+.output-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.output-title { color: #ccc; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.scenario-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+.sc-tab { padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; border: 1px solid #333; color: #888; background: none; font-family: var(--font); }
+.sc-tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.file-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.file-item { background: rgba(255,255,255,.05); border: 1px solid #2e2e2c; border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
+.file-icon { font-size: 14px; }
+.file-name { font-size: 11.5px; color: #ccc; flex: 1; font-family: monospace; }
+.file-size { font-size: 10px; color: #666; }
+.dl-btn { background: none; border: 1px solid #333; border-radius: 4px; padding: 3px 8px; color: #888; font-size: 10.5px; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+.dl-btn:hover { color: #fff; border-color: #555; }
+.log-box { background: #111; border-radius: 6px; padding: 10px 12px; font-family: monospace; font-size: 11px; color: #6ee7b7; line-height: 1.8; max-height: 160px; overflow-y: auto; margin-top: 10px; }
+
+/* Toast */
+.toast-wrap { position: fixed; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 999; }
+.toast { padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: flex; align-items: center; gap: 8px; animation: slideIn .2s ease; }
+@keyframes slideIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: none; } }
+.toast-ok { background: var(--green-light); color: var(--green); }
+.toast-err { background: var(--red-light); color: var(--red); }
+
+/* Progress */
+.progress-bar { height: 3px; background: var(--blue-light); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width .3s ease; }
+
+/* Weight slider */
+.weight-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.weight-row:last-child { border-bottom: none; }
+.weight-label { width: 180px; font-size: 12.5px; flex-shrink: 0; }
+.weight-grade { width: 60px; font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+.weight-slider { flex: 1; }
+.weight-val { width: 44px; text-align: right; font-size: 12.5px; font-weight: 600; color: var(--blue); }
+
+input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: var(--gray-100); border-radius: 2px; outline: none; cursor: pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--blue); cursor: pointer; }
+
+.empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <h1>TKB Generator</h1>
+      <p>Sinh dữ liệu test</p>
+    </div>
+    <nav class="sidebar-nav" id="nav"></nav>
+    <div class="sidebar-actions">
+      <button class="btn-sidebar btn-generate" id="btnGenerate" onclick="generateAll()">
+        ⚡ Generate All
+      </button>
+      <button class="btn-sidebar" onclick="downloadAll()">
+        ↓ Tải tất cả (ZIP)
+      </button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="pageTitle">Scenarios</div>
+        <div class="topbar-sub" id="pageSub">Cấu hình các bộ dữ liệu cần sinh</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-sm" onclick="resetConfig()">↺ Reset mặc định</button>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ── Default Config ──────────────────────────────────────────────────
+const DEFAULT = {
+  grades: [
+    {code:10, prefix:"10C", default_classes:5},
+    {code:11, prefix:"11B", default_classes:5},
+    {code:12, prefix:"12A", default_classes:5},
+  ],
+  subjects: [
+    {name:"Toán học",    grade:10,periods:3,type:"compulsory"},
+    {name:"Ngữ văn",     grade:10,periods:3,type:"compulsory"},
+    {name:"Tiếng Anh",   grade:10,periods:3,type:"compulsory"},
+    {name:"Lịch sử",     grade:10,periods:1,type:"compulsory"},
+    {name:"GDQPAN",      grade:10,periods:1,type:"compulsory"},
+    {name:"Giáo dục TC", grade:10,periods:2,type:"compulsory"},
+    {name:"GD địa phương",grade:10,periods:1,type:"compulsory"},
+    {name:"HĐ trải nghiệm",grade:10,periods:3,type:"compulsory"},
+    {name:"Toán học",    grade:11,periods:3,type:"compulsory"},
+    {name:"Ngữ văn",     grade:11,periods:3,type:"compulsory"},
+    {name:"Tiếng Anh",   grade:11,periods:3,type:"compulsory"},
+    {name:"Lịch sử",     grade:11,periods:1,type:"compulsory"},
+    {name:"Toán học",    grade:12,periods:5,type:"compulsory"},
+    {name:"Ngữ văn",     grade:12,periods:5,type:"compulsory"},
+    {name:"Tiếng Anh",   grade:12,periods:3,type:"compulsory"},
+    {name:"Lịch sử",     grade:12,periods:2,type:"compulsory"},
+    {name:"Vật lý",      grade:"ALL",periods:2,type:"elective"},
+    {name:"Hóa học",     grade:"ALL",periods:2,type:"elective"},
+    {name:"Sinh học",    grade:"ALL",periods:2,type:"elective"},
+    {name:"Địa lý",      grade:"ALL",periods:2,type:"elective"},
+    {name:"GDKTPL",      grade:"ALL",periods:2,type:"elective"},
+    {name:"Tin học",     grade:"ALL",periods:2,type:"elective"},
+    {name:"Công nghệ CN",grade:"ALL",periods:2,type:"elective"},
+    {name:"Công nghệ NN",grade:"ALL",periods:2,type:"elective"},
+    {name:"Âm nhạc",     grade:"ALL",periods:2,type:"elective"},
+  ],
+  elective_weights: [
+    {subject:"Vật lý",      grade:"ALL", weight:60},
+    {subject:"Hóa học",     grade:"ALL", weight:55},
+    {subject:"Sinh học",    grade:"ALL", weight:45},
+    {subject:"Địa lý",      grade:"ALL", weight:40},
+    {subject:"GDKTPL",      grade:"ALL", weight:35},
+    {subject:"Tin học",     grade:"ALL", weight:50},
+    {subject:"Công nghệ CN",grade:"ALL", weight:30},
+    {subject:"Công nghệ NN",grade:"ALL", weight:25},
+    {subject:"Âm nhạc",     grade:"ALL", weight:20},
+  ],
+  teachers: [
+    {subject:"Toán học",     grade:"ALL",main:1,extra:0},
+    {subject:"Ngữ văn",      grade:"ALL",main:1,extra:0},
+    {subject:"Tiếng Anh",    grade:"ALL",main:1,extra:0},
+    {subject:"Lịch sử",      grade:"ALL",main:1,extra:0},
+    {subject:"Giáo dục TC",  grade:"ALL",main:1,extra:0},
+    {subject:"GDQPAN",       grade:"ALL",main:1,extra:0},
+    {subject:"GD địa phương",grade:"ALL",main:1,extra:0},
+    {subject:"HĐ trải nghiệm",grade:"ALL",main:1,extra:0},
+    {subject:"Vật lý",       grade:"ALL",main:1,extra:1},
+    {subject:"Hóa học",      grade:"ALL",main:1,extra:1},
+    {subject:"Sinh học",     grade:"ALL",main:1,extra:0},
+    {subject:"Địa lý",       grade:"ALL",main:1,extra:0},
+    {subject:"GDKTPL",       grade:"ALL",main:1,extra:0},
+    {subject:"Tin học",      grade:"ALL",main:1,extra:1},
+    {subject:"Công nghệ CN", grade:"ALL",main:1,extra:0},
+    {subject:"Công nghệ NN", grade:"ALL",main:1,extra:0},
+    {subject:"Âm nhạc",      grade:"ALL",main:1,extra:0},
+  ],
+  rooms: [
+    {type:"Classroom",   count:15, capacity:55, is_functional:false, prefix:"Classroom"},
+    {type:"Yard",        count:4,  capacity:55, is_functional:true,  prefix:"Yard"},
+    {type:"Computer Lab",count:3,  capacity:40, is_functional:true,  prefix:"Computer Lab"},
+  ],
+  name_rules: {
+    last_names:    "Nguyễn,Trần,Lê,Phạm,Hoàng,Huỳnh,Phan,Vũ,Võ,Đặng,Bùi,Đỗ,Hồ,Ngô,Dương",
+    middle_male:   "Văn,Hữu,Đức,Minh,Quốc,Thanh,Trung,Tuấn,Anh,Khắc",
+    middle_female: "Thị,Ngọc,Phương,Bích,Kim,Mỹ,Thu,Lan,Hoài,Hồng",
+    given_male:    "An,Bình,Cường,Dũng,Đức,Giang,Hải,Hùng,Lâm,Minh,Nam,Phong,Sơn,Tuấn,Vinh",
+    given_female:  "An,Anh,Bình,Chi,Giang,Hà,Hải,Hạnh,Hiếu,Hoa,Khanh,Lan,Linh,Mai,Nhi",
+    prefix_male:   "Thầy",
+    prefix_female: "Cô",
+  },
+  scenarios: [
+    {name:"minimal", classes_per_grade:2, students_per_class:10, electives_per_student:2, seed:1001, enabled:true},
+    {name:"small",   classes_per_grade:3, students_per_class:20, electives_per_student:2, seed:2002, enabled:true},
+    {name:"medium",  classes_per_grade:5, students_per_class:30, electives_per_student:2, seed:3003, enabled:true},
+    {name:"large",   classes_per_grade:8, students_per_class:40, electives_per_student:3, seed:4004, enabled:false},
+    {name:"stress",  classes_per_grade:12,students_per_class:45, electives_per_student:3, seed:5005, enabled:false},
+  ],
+};
+
+let config = JSON.parse(JSON.stringify(DEFAULT));
+let generated = {}; // scenarioName -> {filename -> jsonString}
+let activeTab = 'scenarios';
+let outputScenario = null;
+let generating = false;
+let logs = [];
+
+function resetConfig() {
+  if (!confirm('Reset về cấu hình mặc định?')) return;
+  config = JSON.parse(JSON.stringify(DEFAULT));
+  generated = {};
+  render();
+  toast('Đã reset về mặc định');
+}
+
+// ── Navigation ──────────────────────────────────────────────────────
+const PAGES = [
+  {id:'scenarios',    icon:'⚡', label:'Scenarios',        sub:'Các bộ dữ liệu cần sinh'},
+  {id:'grades',       icon:'🏫', label:'Khối & Lớp',       sub:'Cấu hình khối học và prefix lớp'},
+  {id:'subjects',     icon:'📚', label:'Môn học',           sub:'Danh sách môn + số tiết'},
+  {id:'weights',      icon:'⚖️', label:'Tỉ lệ tự chọn',    sub:'Trọng số % chọn môn tự chọn'},
+  {id:'teachers',     icon:'👤', label:'Giáo viên',         sub:'Số lượng GV mỗi môn'},
+  {id:'rooms',        icon:'🚪', label:'Phòng học',         sub:'Số lượng + loại phòng'},
+  {id:'name_rules',   icon:'✏️', label:'Quy tắc tên',       sub:'Pool họ, đệm, tên ngẫu nhiên'},
+  {id:'output',       icon:'📦', label:'Output',            sub:'Xem & tải file đã sinh'},
+];
+
+function renderNav() {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = PAGES.map(p => `
+    <div class="nav-item ${activeTab===p.id?'active':''}" onclick="setTab('${p.id}')">
+      <span class="nav-icon">${p.icon}</span>
+      <span>${p.label}</span>
+      ${p.id==='output'&&Object.keys(generated).length>0?`<span class="nav-badge">${Object.keys(generated).length}</span>`:''}
+    </div>
+  `).join('');
+}
+
+function setTab(id) {
+  activeTab = id;
+  const p = PAGES.find(x=>x.id===id);
+  document.getElementById('pageTitle').textContent = p.label;
+  document.getElementById('pageSub').textContent   = p.sub;
+  render();
+}
+
+// ── Render Pages ────────────────────────────────────────────────────
+function render() {
+  renderNav();
+  const c = document.getElementById('content');
+  c.innerHTML = '';
+  if (activeTab==='scenarios')  c.innerHTML = renderScenarios();
+  if (activeTab==='grades')     c.innerHTML = renderGrades();
+  if (activeTab==='subjects')   c.innerHTML = renderSubjects();
+  if (activeTab==='weights')    c.innerHTML = renderWeights();
+  if (activeTab==='teachers')   c.innerHTML = renderTeachers();
+  if (activeTab==='rooms')      c.innerHTML = renderRooms();
+  if (activeTab==='name_rules') c.innerHTML = renderNameRules();
+  if (activeTab==='output')     c.innerHTML = renderOutput();
+  bindEvents();
+}
+
+function renderScenarios() {
+  const total = config.scenarios.filter(s=>s.enabled).length;
+  return `
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Danh sách Scenarios</div>
+        <div class="card-desc">${total} bộ đang bật — nhấn <b>Generate All</b> để sinh tất cả</div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:36px"></th>
+          <th>Tên bộ</th>
+          <th>Lớp/khối</th>
+          <th>HS/lớp</th>
+          <th>Tự chọn</th>
+          <th>Seed</th>
+          <th>Tổng HS</th>
+          <th>Bật</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${config.scenarios.map((s,i)=>`
+          <tr>
+            <td><div class="cell" style="color:#aaa;font-size:11px;justify-content:center">${i+1}</div></td>
+            <td><div class="cell"><input data-sc="${i}" data-f="name" value="${s.name}"></div></td>
+            <td><div class="cell"><input data-sc="${i}" data-f="classes_per_grade" type="number" min="1" max="20" value="${s.classes_per_grade}" style="width:60px"></div></td>
+            <td><div class="cell"><input data-sc="${i}" data-f="students_per_class" type="number" min="1" max="60" value="${s.students_per_class}" style="width:60px"></div></td>
+            <td><div class="cell"><input data-sc="${i}" data-f="electives_per_student" type="number" min="1" max="9" value="${s.electives_per_student}" style="width:50px"></div></td>
+            <td><div class="cell"><input data-sc="${i}" data-f="seed" type="number" value="${s.seed}" style="width:80px"></div></td>
+            <td><div class="cell" style="color:#666;font-style:italic">
+              ~${config.grades.length * s.classes_per_grade * s.students_per_class}
+            </div></td>
+            <td><div class="cell" style="justify-content:center">
+              <input type="checkbox" data-sc="${i}" data-f="enabled" ${s.enabled?'checked':''} style="cursor:pointer;width:auto">
+            </div></td>
+            <td><div class="cell"><button class="del-btn" onclick="deleteRow('scenarios',${i})">✕</button></div></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="add-row" onclick="addRow('scenarios')">+ Thêm scenario</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Tóm tắt</div></div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        ${config.scenarios.filter(s=>s.enabled).map(s=>{
+          const total = config.grades.length * s.classes_per_grade * s.students_per_class;
+          return `<div style="background:var(--gray-50);border-radius:6px;padding:12px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">${s.name}</div>
+            <div style="font-size:20px;font-weight:700;color:var(--blue)">${total}</div>
+            <div style="font-size:10.5px;color:var(--text-muted)">${config.grades.length*s.classes_per_grade} lớp · ${s.students_per_class} HS/lớp</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderGrades() {
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Khối học</div>
+      <div class="card-desc">Thêm khối 7,8,9 nếu cần (đổi prefix và số lớp tương ứng)</div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Mã khối</th><th>Prefix lớp</th><th>Số lớp mặc định</th><th></th></tr></thead>
+      <tbody>${config.grades.map((g,i)=>`<tr>
+        <td><div class="cell"><input data-arr="grades" data-i="${i}" data-f="code" type="number" value="${g.code}"></div></td>
+        <td><div class="cell"><input data-arr="grades" data-i="${i}" data-f="prefix" value="${g.prefix}"></div></td>
+        <td><div class="cell"><input data-arr="grades" data-i="${i}" data-f="default_classes" type="number" min="1" max="20" value="${g.default_classes}"></div></td>
+        <td><div class="cell"><button class="del-btn" onclick="deleteRow('grades',${i})">✕</button></div></td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <div class="add-row" onclick="addRow('grades')">+ Thêm khối</div>
+    </div>
+  </div>`;
+}
+
+function renderSubjects() {
+  const grades = config.grades.map(g=>g.code);
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Môn học</div>
+      <div class="card-desc">grade = ALL nghĩa là áp dụng cho tất cả khối</div></div>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <span class="badge badge-blue">Bắt buộc: ${config.subjects.filter(s=>s.type==='compulsory').length}</span>
+        <span class="badge badge-green">Tự chọn: ${config.subjects.filter(s=>s.type==='elective').length}</span>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tên môn</th><th>Khối</th><th>Số tiết</th><th>Loại</th><th></th></tr></thead>
+      <tbody>${config.subjects.map((s,i)=>`<tr>
+        <td><div class="cell"><input data-arr="subjects" data-i="${i}" data-f="name" value="${s.name}"></div></td>
+        <td><div class="cell">
+          <select data-arr="subjects" data-i="${i}" data-f="grade">
+            <option value="ALL" ${s.grade==='ALL'?'selected':''}>ALL</option>
+            ${grades.map(g=>`<option value="${g}" ${s.grade==g?'selected':''}>${g}</option>`).join('')}
+          </select>
+        </div></td>
+        <td><div class="cell"><input data-arr="subjects" data-i="${i}" data-f="periods" type="number" min="1" max="10" value="${s.periods}" style="width:60px"></div></td>
+        <td><div class="cell">
+          <select data-arr="subjects" data-i="${i}" data-f="type">
+            <option value="compulsory" ${s.type==='compulsory'?'selected':''}>Bắt buộc</option>
+            <option value="elective"   ${s.type==='elective'?'selected':''}>Tự chọn</option>
+          </select>
+        </div></td>
+        <td><div class="cell"><button class="del-btn" onclick="deleteRow('subjects',${i})">✕</button></div></td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <div class="add-row" onclick="addRow('subjects')">+ Thêm môn</div>
+    </div>
+  </div>`;
+}
+
+function renderWeights() {
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Tỉ lệ chọn môn tự chọn</div>
+      <div class="card-desc">Kéo slider để điều chỉnh. Không cần tổng = 100% — script dùng làm trọng số tương đối.</div></div>
+    </div>
+    <div class="card-body">
+      ${config.elective_weights.map((ew,i)=>`
+      <div class="weight-row">
+        <div class="weight-label">${ew.subject}</div>
+        <div class="weight-grade"><span class="badge badge-blue" style="font-size:10px">${ew.grade}</span></div>
+        <div class="weight-slider">
+          <input type="range" min="0" max="100" value="${ew.weight}"
+            oninput="config.elective_weights[${i}].weight=+this.value;this.nextElementSibling.textContent=this.value+'%'">
+        </div>
+        <div class="weight-val">${ew.weight}%</div>
+        <button class="del-btn" onclick="deleteRow('elective_weights',${i})">✕</button>
+      </div>`).join('')}
+      <div style="margin-top:12px">
+        <button class="btn btn-sm" onclick="addWeightRow()">+ Thêm trọng số</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTeachers() {
+  const grades = config.grades.map(g=>g.code);
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Cấu hình Giáo viên</div>
+      <div class="card-desc">Script tự sinh tên ngẫu nhiên theo pool ở tab "Quy tắc tên"</div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Môn học</th><th>Khối</th><th>GV chính</th><th>GV phụ</th><th></th></tr></thead>
+      <tbody>${config.teachers.map((t,i)=>`<tr>
+        <td><div class="cell"><input data-arr="teachers" data-i="${i}" data-f="subject" value="${t.subject}"></div></td>
+        <td><div class="cell">
+          <select data-arr="teachers" data-i="${i}" data-f="grade">
+            <option value="ALL" ${t.grade==='ALL'?'selected':''}>ALL</option>
+            ${grades.map(g=>`<option value="${g}" ${t.grade==g?'selected':''}>${g}</option>`).join('')}
+          </select>
+        </div></td>
+        <td><div class="cell"><input data-arr="teachers" data-i="${i}" data-f="main" type="number" min="1" max="10" value="${t.main}" style="width:60px"></div></td>
+        <td><div class="cell"><input data-arr="teachers" data-i="${i}" data-f="extra" type="number" min="0" max="10" value="${t.extra}" style="width:60px"></div></td>
+        <td><div class="cell"><button class="del-btn" onclick="deleteRow('teachers',${i})">✕</button></div></td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <div class="add-row" onclick="addRow('teachers')">+ Thêm môn</div>
+    </div>
+  </div>`;
+}
+
+function renderRooms() {
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Phòng học</div>
+      <div class="card-desc">Tổng: ${config.rooms.reduce((s,r)=>s+r.count,0)} phòng</div></div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Loại</th><th>Số lượng</th><th>Sức chứa</th><th>Chức năng</th><th>Prefix tên</th><th></th></tr></thead>
+      <tbody>${config.rooms.map((r,i)=>`<tr>
+        <td><div class="cell">
+          <select data-arr="rooms" data-i="${i}" data-f="type">
+            ${['Classroom','Yard','Computer Lab','Lab','Hall'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div></td>
+        <td><div class="cell"><input data-arr="rooms" data-i="${i}" data-f="count" type="number" min="1" max="99" value="${r.count}" style="width:60px"></div></td>
+        <td><div class="cell"><input data-arr="rooms" data-i="${i}" data-f="capacity" type="number" min="1" max="200" value="${r.capacity}" style="width:70px"></div></td>
+        <td><div class="cell" style="justify-content:center">
+          <input type="checkbox" data-arr="rooms" data-i="${i}" data-f="is_functional" ${r.is_functional?'checked':''} style="width:auto;cursor:pointer">
+        </div></td>
+        <td><div class="cell"><input data-arr="rooms" data-i="${i}" data-f="prefix" value="${r.prefix}"></div></td>
+        <td><div class="cell"><button class="del-btn" onclick="deleteRow('rooms',${i})">✕</button></div></td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <div class="add-row" onclick="addRow('rooms')">+ Thêm loại phòng</div>
+    </div>
+  </div>`;
+}
+
+function renderNameRules() {
+  const rules = config.name_rules;
+  const fields = [
+    {k:'last_names',    l:'Họ'},
+    {k:'middle_male',   l:'Đệm nam'},
+    {k:'middle_female', l:'Đệm nữ'},
+    {k:'given_male',    l:'Tên nam'},
+    {k:'given_female',  l:'Tên nữ'},
+    {k:'prefix_male',   l:'Tiền tố nam (Thầy)'},
+    {k:'prefix_female', l:'Tiền tố nữ (Cô)'},
+  ];
+  return `<div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Quy tắc sinh tên</div>
+      <div class="card-desc">Danh sách cách nhau bằng dấu phẩy. Script chọn ngẫu nhiên từ pool này.</div></div>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:12px">
+      ${fields.map(f=>`
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">${f.l}</div>
+        <input data-nr="${f.k}" value="${rules[f.k]||''}"
+          style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);color:var(--text)">
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:3px">
+          ${(rules[f.k]||'').split(',').filter(x=>x.trim()).length} giá trị
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderOutput() {
+  const scNames = Object.keys(generated);
+  if (scNames.length === 0) {
+    return `<div class="card"><div class="empty">
+      Chưa có dữ liệu. Nhấn <b>⚡ Generate All</b> ở sidebar để sinh.
+    </div></div>`;
+  }
+  if (!outputScenario || !generated[outputScenario]) outputScenario = scNames[0];
+  const files = generated[outputScenario] || {};
+  const fileNames = Object.keys(files);
+  return `
+  <div class="scenario-tabs">
+    ${scNames.map(n=>`<button class="sc-tab ${n===outputScenario?'active':''}" onclick="outputScenario='${n}';render()">${n}</button>`).join('')}
+  </div>
+  <div class="output-panel">
+    <div class="output-header">
+      <div class="output-title">📦 ${outputScenario}</div>
+      <button class="dl-btn" style="color:#ccc;font-size:12px" onclick="downloadScenario('${outputScenario}')">↓ Tải ZIP</button>
+    </div>
+    <div class="file-list">
+      ${fileNames.map(fn=>{
+        const content = files[fn];
+        const kb = Math.ceil(new TextEncoder().encode(content).length / 1024);
+        return `<div class="file-item">
+          <span class="file-icon">📄</span>
+          <div style="flex:1;min-width:0">
+            <div class="file-name">${fn}</div>
+            <div class="file-size">${kb} KB</div>
+          </div>
+          <button class="dl-btn" onclick="downloadFile('${outputScenario}','${fn}')">↓</button>
+        </div>`;
+      }).join('')}
+    </div>
+    ${logs.length>0?`<div class="log-box">${logs.join('\n')}</div>`:''}
+  </div>`;
+}
+
+// ── Events ──────────────────────────────────────────────────────────
+function bindEvents() {
+  document.querySelectorAll('[data-arr]').forEach(el => {
+    el.addEventListener('change', e => {
+      const arr = e.target.dataset.arr;
+      const i   = +e.target.dataset.i;
+      const f   = e.target.dataset.f;
+      let val = e.target.type==='checkbox' ? e.target.checked
+              : e.target.type==='number'   ? +e.target.value
+              : e.target.value;
+      config[arr][i][f] = val;
+      if (arr==='scenarios') render();
+    });
+  });
+  document.querySelectorAll('[data-sc]').forEach(el => {
+    el.addEventListener('change', e => {
+      const i = +e.target.dataset.sc;
+      const f = e.target.dataset.f;
+      let val = e.target.type==='checkbox' ? e.target.checked
+              : e.target.type==='number'   ? +e.target.value
+              : e.target.value;
+      config.scenarios[i][f] = val;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-nr]').forEach(el => {
+    el.addEventListener('change', e => {
+      config.name_rules[e.target.dataset.nr] = e.target.value;
+      render();
+    });
+  });
+}
+
+function deleteRow(arr, i) {
+  config[arr].splice(i, 1);
+  render();
+}
+
+function addRow(arr) {
+  const defaults = {
+    grades:    {code:7, prefix:"7A", default_classes:4},
+    subjects:  {name:"Môn mới", grade:"ALL", periods:2, type:"compulsory"},
+    teachers:  {subject:"Môn mới", grade:"ALL", main:1, extra:0},
+    rooms:     {type:"Classroom", count:1, capacity:40, is_functional:false, prefix:"Room"},
+    scenarios: {name:`scenario${config.scenarios.length+1}`, classes_per_grade:5, students_per_class:30, electives_per_student:2, seed:Math.floor(Math.random()*9000)+1000, enabled:true},
+    elective_weights: {subject:"Môn mới", grade:"ALL", weight:50},
+  };
+  config[arr].push({...defaults[arr]});
+  render();
+  toast('Đã thêm dòng mới');
+}
+
+function addWeightRow() {
+  addRow('elective_weights');
+}
+
+// ── Generator (JS port) ─────────────────────────────────────────────
+function seededRNG(seed) {
+  let s = seed;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+}
+
+function randChoice(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
+
+function weightedSampleNoReplace(rng, items, weights, n) {
+  let pool = items.map((item,i)=>({item,w:weights[i]}));
+  const result = [];
+  for (let k=0; k<n && pool.length>0; k++) {
+    const total = pool.reduce((s,x)=>s+x.w, 0);
+    let r = rng() * total, cum = 0;
+    for (let j=0; j<pool.length; j++) {
+      cum += pool[j].w;
+      if (r <= cum) { result.push(pool[j].item); pool.splice(j,1); break; }
+    }
+  }
+  return result;
+}
+
+function genName(rng, gender, nr) {
+  const last   = randChoice(rng, nr.last_names.split(',').map(x=>x.trim()).filter(Boolean));
+  const middle = gender==='M' ? randChoice(rng, nr.middle_male.split(',').map(x=>x.trim()).filter(Boolean))
+                              : randChoice(rng, nr.middle_female.split(',').map(x=>x.trim()).filter(Boolean));
+  const given  = gender==='M' ? randChoice(rng, nr.given_male.split(',').map(x=>x.trim()).filter(Boolean))
+                              : randChoice(rng, nr.given_female.split(',').map(x=>x.trim()).filter(Boolean));
+  return `${last} ${middle} ${given}`;
+}
+
+function genTeacherName(rng, idx, nr) {
+  const gender = idx % 3 !== 0 ? 'F' : 'M';
+  const prefix = gender==='M' ? randChoice(rng, nr.prefix_male.split(',').map(x=>x.trim()).filter(Boolean))
+                              : randChoice(rng, nr.prefix_female.split(',').map(x=>x.trim()).filter(Boolean));
+  const last   = randChoice(rng, nr.last_names.split(',').map(x=>x.trim()).filter(Boolean));
+  const middle = gender==='M' ? randChoice(rng, nr.middle_male.split(',').map(x=>x.trim()).filter(Boolean))
+                              : randChoice(rng, nr.middle_female.split(',').map(x=>x.trim()).filter(Boolean));
+  const given  = gender==='M' ? randChoice(rng, nr.given_male.split(',').map(x=>x.trim()).filter(Boolean))
+                              : randChoice(rng, nr.given_female.split(',').map(x=>x.trim()).filter(Boolean));
+  return `${prefix} ${last} ${middle} ${given}`;
+}
+
+function generateScenario(sc) {
+  const rng = seededRNG(sc.seed);
+  const nr  = config.name_rules;
+  const grades = config.grades;
+  const subjects = config.subjects;
+
+  // classes
+  const classByGrade = {};
+  for (const g of grades) {
+    classByGrade[g.code] = Array.from({length:sc.classes_per_grade}, (_,i)=>`${g.prefix}${String(i+1).padStart(2,'0')}`);
+  }
+
+  // classes.json
+  const classesJson = {grades:{}};
+  for (const g of grades) classesJson.grades[`grade_${g.code}`] = classByGrade[g.code];
+
+  // subjects.json
+  const subjJson = {};
+  for (const g of grades) {
+    const gc = g.code;
+    subjJson[`grade_${gc}`] = {
+      compulsory: subjects.filter(s=>(s.grade==='ALL'||s.grade==gc) && s.type==='compulsory').map(s=>({name:s.name,periods:+s.periods})),
+      elective_groups: subjects.filter(s=>(s.grade==='ALL'||s.grade==gc) && s.type==='elective').map(s=>({name:s.name,periods:+s.periods})),
+    };
+  }
+
+  // rooms.json
+  const roomsList = [];
+  for (const rc of config.rooms) {
+    const dirs = ['North','South','East','West','Central','Upper','Lower','Main'];
+    for (let i=1; i<=rc.count; i++) {
+      let name = rc.count===1 ? rc.prefix : rc.type==='Yard' ? `${dirs[(i-1)%dirs.length]} Yard` : `${rc.prefix} ${i}`;
+      roomsList.push({name, type:rc.type, capacity:+rc.capacity, isFunctional:!!rc.is_functional});
+    }
+  }
+
+  // departments.json
+  const deptDay = {"Toán học":"Thứ 3","Lịch sử":"Thứ 3","Địa lý":"Thứ 3","Tin học":"Thứ 3","Vật lý":"Thứ 4","Hóa học":"Thứ 4","Ngữ văn":"Thứ 4","GDKTPL":"Thứ 5","Công nghệ CN":"Thứ 5","Công nghệ NN":"Thứ 5","Sinh học":"Thứ 6","Tiếng Anh":"Thứ 6","Âm nhạc":"Thứ 7","GDQPAN":"Thứ 7","Giáo dục TC":"Thứ 7"};
+  const days = ["Thứ 2","Thứ 3","Thứ 4","Thứ 5","Thứ 6","Thứ 7"];
+  const seenDept = new Set(); const deptList = [];
+  for (const s of subjects) {
+    if (seenDept.has(s.name)) continue; seenDept.add(s.name);
+    deptList.push({subject:s.name, day: deptDay[s.name] || days[seenDept.size % days.length]});
+  }
+
+  // teachers.json
+  const usedNames = new Set();
+  const teachersList = [];
+  config.teachers.forEach((tc,idx)=>{
+    const gradeList = tc.grade==='ALL' ? grades.map(g=>g.code) : [+tc.grade];
+    const gender = idx%3!==0?'F':'M';
+    for (const gc of gradeList) {
+      const classes = classByGrade[gc]||[];
+      for (let m=0; m<(+tc.main||1); m++) {
+        let name = genTeacherName(rng, idx+m, nr);
+        while (usedNames.has(name)) name = genTeacherName(rng, idx+m+100, nr);
+        usedNames.add(name);
+        teachersList.push({teacher_name:name, assignments:classes.map(c=>({class:c,subject:tc.subject})), teachable_grades:[gc], teachable_subjects:[tc.subject]});
+      }
+    }
+    for (let e=0; e<(+tc.extra||0); e++) {
+      let name = genTeacherName(rng, idx+e+200, nr);
+      while (usedNames.has(name)) name = genTeacherName(rng, idx+e+300, nr);
+      usedNames.add(name);
+      teachersList.push({teacher_name:name, assignments:[], teachable_grades:gradeList, teachable_subjects:[tc.subject]});
+    }
+  });
+
+  // students by grade
+  const studentsByGrade = {};
+  const csvRows = [['full_name','class_code','grade_code']];
+
+  for (const g of grades) {
+    const gc = g.code;
+    const electivesForGrade = subjects.filter(s=>(s.grade==='ALL'||s.grade==gc)&&s.type==='elective').map(s=>s.name);
+    const weights = electivesForGrade.map(en=>{
+      const ew = config.elective_weights.find(x=>x.subject===en&&(x.grade==='ALL'||x.grade==gc))
+              || config.elective_weights.find(x=>x.subject===en);
+      return ew ? +ew.weight : 50;
+    });
+    const totalW = weights.reduce((a,b)=>a+b,0)||1;
+    const normW  = weights.map(w=>w/totalW);
+
+    const students = [];
+    for (const cls of classByGrade[gc]||[]) {
+      const usedInClass = new Set();
+      for (let k=0; k<sc.students_per_class; k++) {
+        const gender = rng() > 0.5 ? 'F' : 'M';
+        let name = genName(rng, gender, nr);
+        let tries = 0;
+        while (usedInClass.has(name) && tries++<20) name = genName(rng, gender, nr);
+        usedInClass.add(name);
+        const n = Math.min(sc.electives_per_student, electivesForGrade.length);
+        const chosen = electivesForGrade.length>0 ? weightedSampleNoReplace(rng, electivesForGrade, normW, n) : [];
+        students.push({name, class:cls, electives:chosen});
+        csvRows.push([name, cls, String(gc)]);
+      }
+    }
+    studentsByGrade[gc] = {students};
+  }
+
+  return {
+    'classes.json': JSON.stringify(classesJson, null, 2),
+    'subjects.json': JSON.stringify(subjJson, null, 2),
+    'rooms.json': JSON.stringify({rooms:roomsList}, null, 2),
+    'departments.json': JSON.stringify({departments:deptList}, null, 2),
+    'teachers.json': JSON.stringify(teachersList, null, 2),
+    ...Object.fromEntries(grades.map(g=>[`grade_${g.code}_student_choices.json`, JSON.stringify(studentsByGrade[g.code], null, 2)])),
+    'students_with_classes.csv': csvRows.map(r=>r.join(',')).join('\n'),
+    '_metadata.json': JSON.stringify({generated_at:new Date().toISOString(), scenario:sc.name, seed:sc.seed, classes_per_grade:sc.classes_per_grade, students_per_class:sc.students_per_class}, null, 2),
+  };
+}
+
+async function generateAll() {
+  if (generating) return;
+  generating = true;
+  logs = [];
+  const btn = document.getElementById('btnGenerate');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang sinh...';
+
+  const enabled = config.scenarios.filter(s=>s.enabled);
+  if (!enabled.length) { toast('Không có scenario nào được bật!', false); generating=false; btn.disabled=false; btn.textContent='⚡ Generate All'; return; }
+
+  generated = {};
+  for (const sc of enabled) {
+    await new Promise(r=>setTimeout(r,20));
+    try {
+      logs.push(`✓ [${sc.name}] ${config.grades.length*sc.classes_per_grade} lớp · ${sc.students_per_class} HS/lớp · seed=${sc.seed}`);
+      generated[sc.name] = generateScenario(sc);
+    } catch(e) {
+      logs.push(`✗ [${sc.name}] Lỗi: ${e.message}`);
+      toast(`Lỗi khi sinh "${sc.name}": ${e.message}`, false);
+    }
+  }
+
+  generating = false;
+  btn.disabled = false;
+  btn.textContent = '⚡ Generate All';
+  toast(`✓ Sinh xong ${Object.keys(generated).length} bộ dữ liệu!`);
+  outputScenario = Object.keys(generated)[0];
+  setTab('output');
+}
+
+function downloadFile(scenarioName, filename) {
+  const content = generated[scenarioName]?.[filename];
+  if (!content) return;
+  const isCSV = filename.endsWith('.csv');
+  const blob = new Blob([content], {type: isCSV?'text/csv':'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadScenario(scenarioName) {
+  const files = generated[scenarioName];
+  if (!files) return;
+  const zip = new JSZip();
+  const folder = zip.folder(scenarioName);
+  for (const [fn, content] of Object.entries(files)) folder.file(fn, content);
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=`${scenarioName}.zip`; a.click();
+  URL.revokeObjectURL(url);
+  toast(`Đã tải ${scenarioName}.zip`);
+}
+
+async function downloadAll() {
+  if (!Object.keys(generated).length) { toast('Chưa có dữ liệu — nhấn Generate trước', false); return; }
+  const zip = new JSZip();
+  for (const [sc, files] of Object.entries(generated)) {
+    const folder = zip.folder(sc);
+    for (const [fn, content] of Object.entries(files)) folder.file(fn, content);
+  }
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='tkb_testdata_all.zip'; a.click();
+  URL.revokeObjectURL(url);
+  toast(`Đã tải ${Object.keys(generated).length} bộ dữ liệu!`);
+}
+
+// ── Toast ────────────────────────────────────────────────────────────
+function toast(msg, ok=true) {
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = `toast ${ok?'toast-ok':'toast-err'}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>el.remove(), 3000);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+setTab('scenarios');
+</script>
+</body>
+</html>
